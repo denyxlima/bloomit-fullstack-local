@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  SST
+  ALMOXARIFADO
+  GESTOR
+  FUNCIONARIO
+}
+
+enum DeliveryStatus {
+  PENDING
+  SIGNED
+  CANCELED
+}
+
+enum RequestStatus {
+  SOLICITADO
+  EM_ANALISE
+  APROVADO
+  EM_SEPARACAO
+  PRONTO_RETIRADA
+  ENTREGUE
+  RECUSADO
+}
+
+enum StockMovementType {
+  ENTRADA
+  SAIDA
+  AJUSTE
+}
+
+model Company {
+  id                    String   @id @default(cuid())
+  legalName             String
+  tradeName             String?
+  cnpj                  String   @unique
+  cnae                  String?
+  riskLevel             String?
+  address               String?
+  city                  String?
+  state                 String?
+  phone                 String?
+  corporateEmail        String?
+  legalResponsible      String?
+  legalResponsibleCpf   String?
+  sstResponsible        String?
+  sstResponsibleRole    String?
+  signatureMethod       String?
+  epiPolicy             String?
+  controlsCaValidity    Boolean  @default(true)
+  storesEvidence        Boolean  @default(true)
+  status                String   @default("ATIVA")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  users          User[]
+  employees      Employee[]
+  epis           Epi[]
+  deliveries     Delivery[]
+  requests       EpiRequest[]
+  stockMovements StockMovement[]
+  auditLogs      AuditLog[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(ADMIN)
+  active       Boolean  @default(true)
+  companyId    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company        Company @relation(fields: [companyId], references: [id])
+  deliveries     Delivery[]
+  stockMovements StockMovement[]
+  auditLogs      AuditLog[]
+}
+
+model Employee {
+  id            String   @id @default(cuid())
+  fullName      String
+  cpf           String
+  registration  String?
+  role          String?
+  department    String?
+  admissionDate String?
+  active        Boolean  @default(true)
+  companyId     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company    Company @relation(fields: [companyId], references: [id])
+  deliveries Delivery[]
+  requests   EpiRequest[]
+
+  @@unique([cpf, companyId])
+}
+
+model Epi {
+  id              String   @id @default(cuid())
+  name            String
+  category        String?
+  description     String?
+  caNumber        String
+  caValidity      String?
+  manufacturer    String?
+  size            String?
+  unit            String   @default("un")
+  currentQuantity Int      @default(0)
+  minimumQuantity Int      @default(0)
+  active          Boolean  @default(true)
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company        Company @relation(fields: [companyId], references: [id])
+  deliveries     Delivery[]
+  requests       EpiRequest[]
+  stockMovements StockMovement[]
+
+  @@unique([caNumber, name, companyId])
+}
+
+model StockMovement {
+  id        String            @id @default(cuid())
+  type      StockMovementType
+  quantity  Int
+  reason    String?
+  epiId     String
+  companyId String
+  userId    String?
+  createdAt DateTime          @default(now())
+
+  epi     Epi     @relation(fields: [epiId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+}
+
+model Delivery {
+  id                  String         @id @default(cuid())
+  quantity            Int            @default(1)
+  reason              String?
+  status              DeliveryStatus @default(PENDING)
+  acceptanceText      String?
+  signedByName        String?
+  signedByCpf         String?
+  signedAt            DateTime?
+  deviceInfo          String?
+  employeeId          String
+  epiId               String
+  companyId           String
+  deliveredByUserId   String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  epi             Epi      @relation(fields: [epiId], references: [id])
+  company         Company  @relation(fields: [companyId], references: [id])
+  deliveredByUser User?    @relation(fields: [deliveredByUserId], references: [id])
+}
+
+model EpiRequest {
+  id            String        @id @default(cuid())
+  reason        String?
+  observation   String?
+  status        RequestStatus @default(SOLICITADO)
+  employeeId    String
+  epiId         String
+  companyId     String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  epi      Epi      @relation(fields: [epiId], references: [id])
+  company  Company  @relation(fields: [companyId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entity      String
+  entityId    String?
+  beforeData  String?
+  afterData   String?
+  companyId   String
+  userId      String?
+  createdAt   DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+}
